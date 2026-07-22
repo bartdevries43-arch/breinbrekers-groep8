@@ -81,26 +81,100 @@ def render_antwoorden():
             f'<h1>Antwoorden</h1><ol class="antwoorden">{rijen}</ol></section>')
 
 
-def bouw_document():
-    vellen = []
+def vel_groepen():
+    """Verdeel de puzzels in vellen; geef (index, puzzels, startnr) terug."""
     for v, i in enumerate(range(0, len(PUZZELS), PER_VEL)):
-        vellen.append(render_vel(v, PUZZELS[i:i + PER_VEL], i + 1))
-    vellen.append(render_antwoorden())
+        yield v, PUZZELS[i:i + PER_VEL], i + 1
+
+
+def htmldoc(titel, inner, printknop=True):
+    btn = ('<button class="printknop" onclick="window.print()">🖨 Print deze pagina</button>'
+           if printknop else "")
+    return f'''<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{esc(titel)}</title>
+<style>{CSS}</style>
+</head>
+<body>{btn}
+{inner}
+</body>
+</html>'''
+
+
+def bouw_alles():
+    secties = [render_vel(v, p, s) for v, p, s in vel_groepen()]
+    secties.append(render_antwoorden())
+    return htmldoc("Breinbrekers · alle vellen", "".join(secties))
+
+
+def bouw_vel_pagina(v, puzzels, startnr):
+    return htmldoc(f"Breinbrekers · vel {v + 1}", render_vel(v, puzzels, startnr))
+
+
+def bouw_antwoorden_pagina():
+    return htmldoc("Breinbrekers · antwoordblad", render_antwoorden())
+
+
+def bouw_index():
+    kaartjes = []
+    for v, puzzels, _ in vel_groepen():
+        cats = " · ".join(dict.fromkeys(p[0] for p in puzzels))
+        kaartjes.append(
+            f'<a class="link vel-link" href="vel-{v + 1}.html">'
+            f'<span class="lnr">Vel {v + 1}</span>'
+            f'<span class="lcats">{esc(cats)}</span>'
+            f'<span class="lprint">🖨 openen &amp; printen</span></a>')
+    links = "".join(kaartjes)
     return f'''<!doctype html>
 <html lang="nl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Breinbrekers · groep 8</title>
-<style>{CSS}</style>
+<style>{INDEX_CSS}</style>
 </head>
 <body>
-<div class="schermbalk">Tip: druk op Ctrl/Cmd + P om te printen (A4, marges
-"geen"/"standaard", "achtergrondafbeeldingen" aan voor de kleuren). Elk vel is één
-A4. De laatste pagina is het antwoordblad voor de leerkracht.</div>
-{"".join(vellen)}
+<div class="hero">
+  <h1>🧠 Breinbrekers</h1>
+  <p class="sub">Groep 8 · print-klare vellen</p>
+  <p class="intro">Klik op een vel om het te openen en te printen (of gebruik de knop
+  "Print deze pagina"). Kies bij het printen A4, marges "geen"/"standaard" en zet
+  "achtergrondafbeeldingen" aan voor de kleuren.</p>
+
+  <a class="link groot" href="breinbrekers.html">📄 Alle vellen + antwoordblad in één keer</a>
+
+  <div class="grid">{links}</div>
+
+  <a class="link antw" href="antwoorden.html">✅ Antwoordblad (voor de leerkracht)</a>
+</div>
 </body>
 </html>'''
+
+
+INDEX_CSS = """
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:"Trebuchet MS","Segoe UI",Verdana,sans-serif; color:#20272e; min-height:100vh;
+  display:flex; align-items:center; justify-content:center; padding:26px;
+  background:linear-gradient(135deg,#fdfaf1,#f1f8f3,#f6f2fc);}
+.hero{background:#fff; border-radius:22px; box-shadow:0 10px 40px rgba(0,0,0,.12); padding:34px 30px;
+  max-width:600px; width:100%; text-align:center;}
+h1{font-family:Georgia,serif; font-size:40px; letter-spacing:2px; margin-bottom:2px;}
+.sub{color:#2f7d4f; font-weight:bold; text-transform:uppercase; letter-spacing:2px; font-size:13px; margin-bottom:14px;}
+.intro{color:#6b7680; font-size:14px; line-height:1.5; margin:0 auto 22px; max-width:460px;}
+.link{display:block; text-decoration:none; border-radius:14px; padding:16px 18px; font-weight:bold; transition:transform .08s;}
+.link:hover{transform:translateY(-2px);}
+.groot{background:#2c5f8a; color:#fff; font-size:17px; margin-bottom:18px;}
+.antw{background:#eaf3ee; color:#2f7d4f; margin-top:18px;}
+.grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.vel-link{background:#f5f2fb; color:#4a3d70; text-align:left; display:flex; flex-direction:column; gap:3px;}
+.lnr{font-size:17px;}
+.lcats{font-weight:normal; font-size:11.5px; color:#7c8088; line-height:1.3;}
+.lprint{font-weight:normal; font-size:12px; color:#8d6be8; margin-top:4px;}
+@media(max-width:480px){ .grid{grid-template-columns:1fr;} }
+"""
 
 
 CSS = """
@@ -141,14 +215,28 @@ h1{font-family:Georgia,"Times New Roman",serif; font-weight:700; text-transform:
   @page{size:A4 portrait; margin:0;}
 }
 @media screen{ .vel{box-shadow:0 2px 14px rgba(0,0,0,.14); margin:16px auto;} }
+.printknop{position:fixed; top:14px; right:14px; z-index:50; border:none; cursor:pointer;
+  background:#2c5f8a; color:#fff; font-family:"Trebuchet MS",sans-serif; font-weight:bold;
+  font-size:15px; padding:12px 18px; border-radius:12px; box-shadow:0 4px 14px rgba(0,0,0,.2);}
+@media print{ .printknop{display:none;} }
 """
 
 
+def schrijf(naam, inhoud):
+    with open(naam, "w", encoding="utf-8") as f:
+        f.write(inhoud)
+
+
 def main():
-    with open("breinbrekers.html", "w", encoding="utf-8") as f:
-        f.write(bouw_document())
+    schrijf("index.html", bouw_index())
+    schrijf("breinbrekers.html", bouw_alles())
+    schrijf("antwoorden.html", bouw_antwoorden_pagina())
+    for v, puzzels, startnr in vel_groepen():
+        schrijf(f"vel-{v + 1}.html", bouw_vel_pagina(v, puzzels, startnr))
     vellen = (len(PUZZELS) + PER_VEL - 1) // PER_VEL
     print(f"Klaar: {len(PUZZELS)} breinbrekers op {vellen} vellen + antwoordblad.")
+    print("  - index.html (startpagina met printbare links)")
+    print(f"  - breinbrekers.html, antwoorden.html, vel-1..{vellen}.html")
 
 
 if __name__ == "__main__":
